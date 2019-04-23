@@ -26,7 +26,7 @@ roles/kube-master/
     └── token.csv.j2
 ```
 
-请在另外窗口打开[roles/kube-master/tasks/main.yml](../roles/kube-master/tasks/main.yml) 文件，对照看以下讲解内容。
+请在另外窗口打开[roles/kube-master/tasks/main.yml](../../roles/kube-master/tasks/main.yml) 文件，对照看以下讲解内容。
 
 ### 创建 kubernetes 证书签名请求
 
@@ -70,6 +70,10 @@ roles/kube-master/
 
 可选，为后续使用基础认证的场景做准备，如实现dashboard 用不同用户名登陆绑定不同的权限，后续更新dashboard的实践文档。
 
+若未创建任何基础认证配置，K8S集群部署完毕后访问dashboard将会提示`401`错误。
+
+当前如需创建基础认证，需单独修改`roles/kube-master/defaults/main.yml`文件，将`BASIC_AUTH_ENABLE`改为`yes`，并相应配置用户名`BASIC_AUTH_USER`（默认用户名为`admin`）及密码`BASIC_AUTH_PASS`。
+
 ### 创建apiserver的服务配置文件
 
 ``` bash
@@ -80,14 +84,13 @@ After=network.target
 
 [Service]
 ExecStart={{ bin_dir }}/kube-apiserver \
-  --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota,NodeRestriction \
+  --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota,NodeRestriction,MutatingAdmissionWebhook,ValidatingAdmissionWebhook \
   --bind-address={{ inventory_hostname }} \
   --insecure-bind-address=127.0.0.1 \
   --authorization-mode=Node,RBAC \
-  --runtime-config=rbac.authorization.k8s.io/v1 \
   --kubelet-https=true \
-  --kubelet-client-certificate={{ ca_dir }}/kubernetes.pem \
-  --kubelet-client-key={{ ca_dir }}/kubernetes-key.pem \
+  --kubelet-client-certificate={{ ca_dir }}/admin.pem \
+  --kubelet-client-key={{ ca_dir }}/admin-key.pem \
   --anonymous-auth=false \
   --basic-auth-file={{ ca_dir }}/basic-auth.csv \
   --service-cluster-ip-range={{ SERVICE_CIDR }} \
@@ -101,12 +104,22 @@ ExecStart={{ bin_dir }}/kube-apiserver \
   --etcd-keyfile={{ ca_dir }}/kubernetes-key.pem \
   --etcd-servers={{ ETCD_ENDPOINTS }} \
   --enable-swagger-ui=true \
+  --endpoint-reconciler-type=lease \
   --allow-privileged=true \
   --audit-log-maxage=30 \
   --audit-log-maxbackup=3 \
   --audit-log-maxsize=100 \
   --audit-log-path=/var/lib/audit.log \
   --event-ttl=1h \
+  --requestheader-client-ca-file={{ ca_dir }}/ca.pem \
+  --requestheader-allowed-names= \
+  --requestheader-extra-headers-prefix=X-Remote-Extra- \
+  --requestheader-group-headers=X-Remote-Group \
+  --requestheader-username-headers=X-Remote-User \
+  --proxy-client-cert-file={{ ca_dir }}/aggregator-proxy.pem \
+  --proxy-client-key-file={{ ca_dir }}/aggregator-proxy-key.pem \
+  --enable-aggregator-routing=true \
+  --runtime-config=batch/v2alpha1=true \
   --v=2
 Restart=on-failure
 RestartSec=5
@@ -142,6 +155,7 @@ ExecStart={{ bin_dir }}/kube-controller-manager \
   --cluster-signing-key-file={{ ca_dir }}/ca-key.pem \
   --service-account-private-key-file={{ ca_dir }}/ca-key.pem \
   --root-ca-file={{ ca_dir }}/ca.pem \
+  --horizontal-pod-autoscaler-use-rest-clients=true \
   --leader-elect=true \
   --v=2
 Restart=on-failure

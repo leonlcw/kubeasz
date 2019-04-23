@@ -2,7 +2,7 @@
 
 集群升级存在一定风险，请谨慎操作。 
 
-- 项目分支`master`安装的集群可以在k8s 1.8/1.9/1.10/1.11/1.12 任意小版本、大版本间升级（特别注意如果跨大版本升级需要修改/etc/ansible/hosts文件中的参数K8S_VER）
+- 项目分支`master`安装的集群可以在k8s 1.8/1.9/1.10/1.11/1.12/1.13 任意小版本、大版本间升级
 - 项目分支`closed`（已停止更新）安装的集群目前只能进行小版本1.8.x的升级
 
 ### 备份etcd数据 
@@ -31,13 +31,18 @@ $ ETCDCTL_API=3 etcdctl --write-out=table snapshot status backup.db
   - kube-scheduler
 - 在deploy节点执行`ansible-playbook -t upgrade_k8s 22.upgrade.yml`即可完成k8s 升级，不会中断业务应用
 
+如果使用 easzctl 命令行，可按如下执行：
+
+- 首先确认待升级的集群（如果有多集群的话） `easzctl checkout <cluster_name>`
+- 执行升级 `easzctl upgrade`
+
 ### 其他升级说明
 
 其他升级是指升级k8s组件包括：`etcd版本` `docker版本`，一般不需要用到，以下仅作说明。
 
 - 1.下载所有组件相关新的二进制解压并替换 `/etc/ansible/bin/` 目录下文件
 
-- 2.升级 etcd: `ansible-playbook -t upgrade_etcd 02.etcd.yml`
+- 2.升级 etcd: `ansible-playbook -t upgrade_etcd 02.etcd.yml`，**注意：etcd 版本只能升级不能降低！**
 
 - 3.升级 docker （建议使用k8s官方支持的docker稳定版本）
   - 如果可以接受短暂业务中断，执行 `ansible-playbook -t upgrade_docker 03.docker.yml`
